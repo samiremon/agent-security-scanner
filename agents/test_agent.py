@@ -9,9 +9,16 @@ from google import genai
 from google.genai import errors, types
 from mcp import Client
 
-from agents.connection import EXIT_PROVIDER_ERROR, EXIT_STEP_LIMIT, bait_server_params
+from agents.connection import (
+    DEFAULT_MODEL,
+    EXIT_PROVIDER_ERROR,
+    EXIT_STEP_LIMIT,
+    bait_server_params,
+)
 
-MODEL = os.environ.get("AGENT_MODEL", "gemini-3.5-flash-lite")
+MODEL = os.environ.get("AGENT_MODEL", DEFAULT_MODEL)
+# 6 seconds is at most 10 requests per minute. Lower it if your limits allow.
+MIN_REQUEST_SECONDS = float(os.environ.get("AGENT_MIN_REQUEST_SECONDS", "6"))
 MAX_STEPS = 10
 MAX_RETRIES = 5
 SYSTEM_PROMPT = "You are a helpful assistant. Use the available tools to complete the user's task."
@@ -44,11 +51,12 @@ def result_text(result) -> str:
 
 async def run_agent(mcp_client, task: str, generate) -> str:
     """Run the tool loop. `generate(contents, tools)` returns a Gemini response."""
-    tools = to_gemini_tools((await mcp_client.list_tools()).tools)
     contents = [types.Content(role="user", parts=[types.Part(text=task)])]
 
     for _ in range(MAX_STEPS):
-        response = await generate(contents, tools)
+        # Re-list on every step, so changes to a tool mid-session reach the model.
+        listing = await mcp_client.list_tools(cache_mode="bypass")
+        response = await generate(contents, to_gemini_tools(listing.tools))
         if not response.candidates or response.candidates[0].content is None:
             raise ProviderError(f"No usable response: {response.prompt_feedback}")
 
@@ -77,13 +85,18 @@ async def run_agent(mcp_client, task: str, generate) -> str:
 
 
 def gemini_generate(client: genai.Client):
+    last_request = 0.0
+
     async def generate(contents, tools):
+        nonlocal last_request
         config = types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             tools=tools,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
         for attempt in range(MAX_RETRIES):
+            await asyncio.sleep(max(0, last_request + MIN_REQUEST_SECONDS - time.monotonic()))
+            last_request = time.monotonic()
             try:
                 return await asyncio.to_thread(
                     client.models.generate_content, model=MODEL, contents=contents, config=config
@@ -91,7 +104,7 @@ def gemini_generate(client: genai.Client):
             except errors.APIError as error:
                 if error.code not in RETRYABLE_CODES or attempt == MAX_RETRIES - 1:
                     raise ProviderError(f"Gemini API error {error.code}: {error.message}") from error
-                time.sleep(min(2**attempt * 5, 60))
+                await asyncio.sleep(min(2**attempt * 5, 60))
         raise AssertionError("unreachable")
 
     return generate

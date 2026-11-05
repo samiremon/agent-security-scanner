@@ -6,6 +6,8 @@ from pathlib import Path
 
 from mcp import StdioServerParameters
 
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+
 EXIT_PROVIDER_ERROR = 3  # The LLM provider blocked the request or failed.
 EXIT_STEP_LIMIT = 4  # The agent gave up without finishing.
 

@@ -18,8 +18,16 @@ def _fill(value, canary: str):
     return value
 
 
+def all_attack_ids() -> list[str]:
+    return sorted(path.stem for path in ATTACKS_DIR.glob("*.yaml") if not path.stem.startswith("_"))
+
+
 def load_attack(attack_id: str) -> dict:
-    path = ATTACKS_DIR / f"{attack_id}.yaml"
-    attack = yaml.safe_load(path.read_text(encoding="utf-8"))
+    attack = yaml.safe_load((ATTACKS_DIR / f"{attack_id}.yaml").read_text(encoding="utf-8"))
+    shared = yaml.safe_load((ATTACKS_DIR / "_tools.yaml").read_text(encoding="utf-8"))
+    attack["tools"] = [
+        {"name": tool, **shared[tool]} if isinstance(tool, str) else tool
+        for tool in attack["tools"]
+    ]
     canary = f"CANARY-{secrets.token_hex(4).upper()}"
     return {**_fill(attack, canary), "canary": canary}
