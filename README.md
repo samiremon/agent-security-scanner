@@ -11,7 +11,7 @@ Automated red teaming for MCP agents. It connects an agent to simulated tools, p
 3. A tool response contains a hidden instruction and the agent has access to a fake secret.
 4. The server logs every tool call, and the scorer checks the log against the attack's rules.
 
-Nothing is really sent. Secrets are fake and generated for each run.
+Nothing is actually sent. Secrets are fake and generated fresh for each run.
 
 | Outcome | Meaning |
 |---|---|
