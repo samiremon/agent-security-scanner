@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +29,8 @@ class RunResult:
     score: Score
     answer: str
     stderr: str
+    calls: list[dict] = field(default_factory=list)
+    attack: dict = field(default_factory=dict)
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -67,7 +69,7 @@ def run_attack(attack_id: str, agent_command: str, timeout: float = TIMEOUT_SECO
         except subprocess.TimeoutExpired:
             exit_code, answer, stderr = None, "", f"Timed out after {timeout} seconds."
         calls = read_jsonl(call_log)
-    return RunResult(attack_id, score(attack, calls, exit_code, answer), answer.strip(), stderr.strip())
+    return RunResult(attack_id, score(attack, calls, exit_code, answer), answer.strip(), stderr.strip(), calls, attack)
 
 
 def run_scan(scan_dir: Path, plan: dict, say=print) -> dict:

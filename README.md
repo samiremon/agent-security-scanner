@@ -4,6 +4,46 @@ Automated red teaming for MCP agents. It connects an agent to simulated tools, p
 
 **Status:** Early development. It currently has 11 attacks across 5 types.
 
+## Local dashboard
+
+```bash
+uv sync
+uv run python -m scanner.dashboard
+```
+
+Open **http://127.0.0.1:8765**. Choose an agent, inspect and select attack scenarios,
+set repetitions, and start a scan. Results include recorded tool calls, the exact
+attack definition, matched evidence, final answers, JSON export, and replay with
+fresh fake secrets. Scan history persists in `runs/dashboard/`.
+
+- **Scripted demo:** no API key. Deliberately follows the first email attack and
+  uses predefined answers for the others. Demonstrates the workflow; these are
+  not model security measurements.
+- **Bundled Gemini agent:** set `GEMINI_API_KEY` in the terminal before starting
+  the dashboard. Optional `AGENT_MODEL` selects the model. `.env` is not loaded
+  automatically. Real scans consume provider quota.
+- **Custom adapter:** enter a local executable command. It receives `AGENT_TASK`,
+  `BAIT_ATTACK_FILE`, and `BAIT_CALL_LOG`. Connect its MCP client using
+  `agents.connection.bait_server_params()` (see `agents/test_agent.py`), run the
+  task, and print its final answer to stdout. Exit 0 normally, 3 for provider
+  errors, or 4 for the step limit. The command runs from the project root with
+  the scanner's environment. This is not a URL-based connection or sandbox for
+  arbitrary executable code.
+
+The dashboard binds only to loopback and requires a session token plus a
+same-origin request to launch commands. Keep it local. One scan runs at a time;
+three consecutive execution errors interrupt it. Replay starts a new complete
+scan. Restarting the server marks unfinished scans interrupted. Existing CLI
+scan records remain separate from dashboard history.
+
+**Current scope:** the 11 existing predefined simulated-tool scenarios. Automatic
+capability discovery, framework-specific adapters, RAG answer attacks, clean-task
+baselines, saved regression packs, and interception of production tools are not
+implemented yet. “Resisted” uses a scenario-specific phrase check, not a semantic
+proof that an answer is correct. Selecting a compatible scenario is currently
+up to the user. Tool traces record names and arguments; attack definitions retain
+simulated responses, rather than a full per-response transcript.
+
 ## How it works
 
 1. The scanner starts your agent with a normal task, such as "Summarize my latest email."
